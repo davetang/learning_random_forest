@@ -93,6 +93,12 @@ ggplot(df, aes(x=alcohol, y=colour, colour=class)) + geom_point()
 
 ![Scatter plot of alcohol versus colour by class](image/alcohol_colour.png)
 
+~~~~{.r}
+varImpPlot(r)
+~~~~
+
+![Variance Importance Plot](image/var_imp_plot.png)
+
 # Further reading
 
 * [Machine learning 101](http://www.astroml.org/sklearn_tutorial/general_concepts.html)
