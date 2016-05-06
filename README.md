@@ -38,9 +38,60 @@ From the glossary of this review: [Machine learning applications in genetics and
 install.packages("randomForest")
 library(randomForest)
 
-install.packages('pROC')
-library(pROC)
+# preparing the data
+data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/wine/wine.data'
+df <- read.table(file=url(data_url), header=FALSE, sep=",")
+header <- c('class',
+            'alcohol',
+            'malic_acid',
+            'ash',
+            'ash_alcalinity',
+            'magnesium',
+            'total_phenols',
+            'flavanoids',
+            'nonflavanoid_phenols',
+            'proanthocyanins',
+            'colour',
+            'hue',
+            'od280_od315',
+            'proline')
+names(df) <- header
+df$class <- as.factor(df$class)
+
+# analysis
+# install if necessary
+# install.packages("randomForest")
+library(randomForest)
+
+set.seed(31)
+my_sample <- sort(sample(x = 1:nrow(df), replace = FALSE, size = nrow(df)/2))
+my_sample_comp <- setdiff(1:nrow(df), my_sample)
+
+test <- df[my_sample, ]
+train <- df[my_sample_comp, ]
+
+r <- randomForest(class ~ ., data=train, importance=TRUE, do.trace=100)
+
+# plots
+# install if necessary
+# install.packages(ggplot2)
+library(ggplot2)
+class_1_importance <- data.frame(feature=names(r$importance[,1]), importance=r$importance[,1])
+ggplot(class_1_importance, aes(x=feature, y=importance)) + geom_bar(stat="identity")
+
+class_2_importance <- data.frame(feature=names(r$importance[,2]), importance=r$importance[,2])
+ggplot(class_2_importance, aes(x=feature, y=importance)) + geom_bar(stat="identity")
+
+class_3_importance <- data.frame(feature=names(r$importance[,3]), importance=r$importance[,3])
+ggplot(class_2_importance, aes(x=feature, y=importance)) + geom_bar(stat="identity")
+
+boxplot(df$colour ~ df$class, main="Colour by class")
+boxplot(df$alcohol ~ df$class, main="Alcohol by class")
+
+ggplot(df, aes(x=alcohol, y=colour, colour=class)) + geom_point()
 ~~~~
+
+![Scatter plot of alcohol versus colour by class](image/alcohol_colour.png)
 
 # Further reading
 
