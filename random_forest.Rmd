@@ -1,0 +1,155 @@
+---
+title: "Random Forest"
+author: "Dave Tang"
+date: "13 May 2016"
+output: pdf_document
+toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Install required packages
+
+```{r installation}
+required_packages <- c('randomForest', 'ggplot2')
+
+for(p in required_packages){
+  if (! p %in% installed.packages()[,1]){
+    install.packages(p)
+  } else {
+    print(paste('The package ', p, ' is already installed', sep=''))
+  }
+}
+```
+
+## Preparing the data
+
+```{r data}
+data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/wine/wine.data'
+df <- read.table(file=url(data_url), header=FALSE, sep=",")
+header <- c('class',
+            'alcohol',
+            'malic_acid',
+            'ash',
+            'ash_alcalinity',
+            'magnesium',
+            'total_phenols',
+            'flavanoids',
+            'nonflavanoid_phenols',
+            'proanthocyanins',
+            'colour',
+            'hue',
+            'od280_od315',
+            'proline')
+names(df) <- header
+df$class <- as.factor(df$class)
+
+# how many classes of wine?
+table(df$class)
+```
+
+## Analysis
+
+```{r analysis}
+library(randomForest)
+
+set.seed(31)
+my_sample <- sort(sample(x = 1:nrow(df), replace = FALSE, size = nrow(df)/2))
+my_sample_comp <- setdiff(1:nrow(df), my_sample)
+
+test <- df[my_sample, ]
+train <- df[my_sample_comp, ]
+
+# data = an optional data frame containing the variables in the model
+# importance = calculate the importance of predictors
+# do.trace = give a more verbose output as randomForest is running
+# proximity = calculate the proximity measure among the rows
+r <- randomForest(class ~ ., data=train, importance=TRUE, do.trace=100, proximity = TRUE)
+```
+
+## Plots
+
+```{r plots}
+library(ggplot2)
+varImpPlot(r)
+
+ggplot(df, aes(x=alcohol, y=colour, colour=class)) + geom_point()
+```
+
+## Random Forest object
+
+```{r object}
+class(r)
+
+names(r)
+
+# the original call to randomForest
+r$call
+
+# one of regression, classification, or unsupervised
+r$type
+
+# the predicted values of the input data based on out-of-bag samples
+r$predicted
+
+# a matrix with nclass + 2 (for classification) or two (for regression) columns
+# for classification: the first three columns are the class-specific measures
+# computed as mean descrease in accuracy
+# the MeanDecreaseAccuracy column is the mean descrease in accuracy over all classes
+# the MeanDecreaseGini is the mean decrease in Gini index
+r$importance
+
+# the “standard errors” of the permutation-based importance measure
+r$importanceSD
+
+# number of trees grown
+r$ntree
+
+# number of predictors sampled for spliting at each node
+r$mtry
+
+# a list that contains the entire forest
+# r$forest
+# use getTree() to obtain an individual tree
+getTree(r, k = 1)
+
+# (classification only) vector error rates of the prediction on the input data,
+# the i-th element being the (OOB) error rate for all trees up to the i-th
+head(r$err.rate)
+
+# (classification only) the confusion matrix of the prediction (based on OOB data)
+r$confusion
+
+# (classification only) a matrix with one row for each input data point and one column
+# for each class, giving the fraction or number of (OOB) ‘votes’ from the random forest
+head(r$votes)
+
+# number of times cases are ‘out-of-bag’ (and thus used in computing OOB error estimate)
+r$oob.times
+
+# if proximity=TRUE when randomForest is called, a matrix of proximity measures among the
+# input (based on the frequency that pairs of data points are in the same terminal nodes)
+dim(r$proximity)
+```
+
+## On importance
+
+Notes from [Stack Exchange](http://stats.stackexchange.com/questions/92419/relative-importance-of-a-set-of-predictors-in-a-random-forests-classification-in>):
+
+MeanDecreaseGini is a measure of variable importance based on the Gini impurity index used for the calculation of splits during training. A common misconception is that the variable importance metric refers to the Gini used for asserting model performance which is closely related to AUC, but this is wrong. Here is the explanation from the randomForest package written by Breiman and Cutler:
+
+> Every time a split of a node is made on variable m the gini impurity criterion for the two descendent nodes is less than the parent node. Adding up the gini decreases for each individual variable over all trees in the forest gives a fast variable importance that is often very consistent with the permutation importance measure.
+
+The Gini impurity index is defined as:
+
+$$ G = \sum^{n_c}_{i=1} p_i (1 - p_i) $$
+
+where $n_c$ is the number of classes in the target variable and $p_i$ is the ratio of this class.
+
+## Session information
+
+```{r session, echo=FALSE}
+sessionInfo()
+```
