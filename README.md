@@ -110,6 +110,56 @@ varImpPlot(r)
 
 ![Variance Importance Plot](image/var_imp_plot.png)
 
+# Parallelisation
+
+The `combine()` function in `randomForest` allows us to combine an ensemble of trees. Using the `doSNOW` and `foreach` packages, we can train several forests in parallel and combine them.
+
+~~~~{.r}
+library(randomForest)
+
+# http://archive.ics.uci.edu/ml/datasets/Letter+Recognition
+# 20,000 by 16 dataset
+data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/letter-recognition/letter-recognition.data'
+df <- read.table(file=url(data_url), header=FALSE, sep=',')
+colnames(df) <- c('class', 'xbox', 'ybox', 'width', 'high', 'onpix', 'xbar', 'ybar', 'x2bar', 'y2bar', 'xybar', 'x2ybr', 'xy2br', 'xege', 'xegvy', 'yege', 'yegvx')
+
+system.time(r <- randomForest(class ~ ., data=df, importance=TRUE, do.trace=100, proximity=TRUE))
+# ntree      OOB      1      2      3      4      5      6      7      8      9     10     11     12     13     14     15     16     17     18     19     20     21     22     23     24     25     26
+#   100:   3.58%  0.63%  3.79%  3.67%  2.61%  4.17%  5.55%  4.40%  8.72%  4.90%  5.22%  7.04%  2.76%  1.26%  3.96%  3.85%  4.36%  3.45%  4.35%  2.94%  2.39%  1.48%  3.80%  2.13%  2.16%  2.04%  2.32%
+#   200:   3.16%  0.25%  3.26%  3.12%  2.36%  3.78%  4.65%  3.75%  7.36%  4.90%  4.28%  6.09%  2.37%  1.39%  3.96%  3.45%  3.86%  3.19%  4.75%  2.94%  1.88%  1.35%  3.14%  0.80%  2.16%  1.53%  2.18%
+#   300:   3.25%  0.38%  3.39%  3.40%  2.61%  4.17%  4.65%  3.49%  7.90%  4.64%  4.69%  5.82%  2.50%  1.14%  3.83%  3.45%  4.11%  2.94%  4.75%  2.81%  2.01%  1.60%  3.40%  1.33%  2.29%  1.53%  2.32%
+#   400:   3.11%  0.51%  3.00%  2.58%  2.36%  4.17%  4.77%  3.49%  7.77%  4.90%  4.55%  5.82%  2.10%  1.14%  3.70%  3.19%  4.11%  3.19%  4.22%  2.67%  1.88%  1.60%  3.53%  0.80%  1.78%  1.53%  2.04%
+#   500:   3.09%  0.51%  2.87%  2.85%  2.98%  3.91%  4.52%  3.49%  7.63%  5.03%  4.82%  5.55%  1.97%  1.14%  3.96%  3.05%  3.74%  2.94%  4.35%  2.67%  1.63%  1.72%  3.40%  0.93%  1.78%  1.53%  1.91%
+   user  system elapsed
+460.992  44.084 505.639
+
+library(foreach)
+library(doSNOW)
+registerDoSNOW(makeCluster(5, type='SOCK'))
+
+system.time(rf <- foreach(ntree = rep(100, 5), .combine = combine, .packages = "randomForest") %dopar%  randomForest(class ~ ., data=df, proximity=TRUE, importance=TRUE, ntree = ntree))
+#    user  system elapsed
+#  48.856  99.192 265.819
+
+# faster parallelisation by using .multicombine=TRUE
+# see http://stackoverflow.com/questions/14106010/parallel-execution-of-random-forest-in-r
+system.time(rfm <- foreach(ntree = rep(100, 5), .combine = combine, .multicombine=TRUE, .packages = "randomForest") %dopar%  randomForest(class ~ ., data=df, proximity=TRUE, importance=TRUE, ntree = ntree))
+#   user  system elapsed
+# 30.404  49.052 200.325
+
+length(names(r))
+# [1] 19
+
+length(names(rf))
+# [1] 17
+
+# as noted in the documentation of the Random Forest package under combine
+# The confusion, err.rate, mse and rsq components (as well as the corresponding
+# components in the test compnent, if exist) of the combined object will be NULL.
+setdiff(names(r), names(rf))
+# [1] "err.rate"  "confusion"
+~~~~
+
 # Further reading
 
 * [Machine learning 101](http://www.astroml.org/sklearn_tutorial/general_concepts.html)
