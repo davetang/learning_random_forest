@@ -130,8 +130,8 @@ system.time(r <- randomForest(class ~ ., data=df, importance=TRUE, do.trace=100,
 #   300:   3.25%  0.38%  3.39%  3.40%  2.61%  4.17%  4.65%  3.49%  7.90%  4.64%  4.69%  5.82%  2.50%  1.14%  3.83%  3.45%  4.11%  2.94%  4.75%  2.81%  2.01%  1.60%  3.40%  1.33%  2.29%  1.53%  2.32%
 #   400:   3.11%  0.51%  3.00%  2.58%  2.36%  4.17%  4.77%  3.49%  7.77%  4.90%  4.55%  5.82%  2.10%  1.14%  3.70%  3.19%  4.11%  3.19%  4.22%  2.67%  1.88%  1.60%  3.53%  0.80%  1.78%  1.53%  2.04%
 #   500:   3.09%  0.51%  2.87%  2.85%  2.98%  3.91%  4.52%  3.49%  7.63%  5.03%  4.82%  5.55%  1.97%  1.14%  3.96%  3.05%  3.74%  2.94%  4.35%  2.67%  1.63%  1.72%  3.40%  0.93%  1.78%  1.53%  1.91%
-   user  system elapsed
-460.992  44.084 505.639
+#    user  system elapsed
+# 460.992  44.084 505.639
 
 library(foreach)
 library(doSNOW)
@@ -159,6 +159,51 @@ length(names(rf))
 setdiff(names(r), names(rf))
 # [1] "err.rate"  "confusion"
 ~~~~
+
+# Proximity
+
+Proximity is calculated by tallying the number of times a pair of records ends up at the same terminal node for each tree.
+
+~~~~{.r}
+library(randomForest)
+
+data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/letter-recognition/letter-recognition.data'
+df <- read.table(file=url(data_url), header=FALSE, sep=',')
+colnames(df) <- c('class', 'xbox', 'ybox', 'width', 'high', 'onpix', 'xbar', 'ybar', 'x2bar', 'y2bar', 'xybar', 'x2ybr', 'xy2br', 'xege', 'xegvy', 'yege', 'yegvx')
+r <- randomForest(class ~ ., data=df, importance=TRUE, proximity=TRUE)
+
+# proximity matrix
+mat <- r$proximity
+# name the rows and columns
+rownames(mat) <- df$class
+colnames(mat) <- df$class
+
+# use the which() function to calculate a
+# matrix of which elements in the proximity matrix
+# are greater than 0.5 but not 1
+w <- which(mat > 0.5 & mat != 1, arr.ind = TRUE)
+
+# function to retrieve row and column names
+# from the w matrix
+get_row_col <- function(x, m){
+  my_row <- rownames(m)[x[1]]
+  my_col <- colnames(m)[x[2]]
+  paste(my_row, my_col, sep = ':')
+}
+
+table(unname(apply(w, 1, get_row_col, m=mat)))
+
+#    A:A    A:G    B:B    B:H    C:C    D:D    D:H    D:O    E:E    E:G    E:K    E:L    E:S    E:Z    F:F    F:P    G:A 
+# 191944      1  14124      1  26514  10512     18      2  28560      4      1      2      1      1  18276     13      1 
+#    G:E    G:G    H:B    H:D    H:H    H:K    I:I    I:J    J:I    J:J    K:E    K:H    K:K    K:R    K:X    L:E    L:L 
+#      4  10492      1     18  26694      4  81548     18     18  61394      1      4  13878      2      1      2 109546 
+#    M:M    M:V    N:N    O:D    O:O    O:Q    P:F    P:P    Q:O    Q:Q    Q:Z    R:K    R:R    S:E    S:S    T:T    T:Y 
+#  49488      3  41938      2  12528      7     13  37994      7   6286      1      2  13730      1  10212  42168     13 
+#    U:U    V:M    V:V    V:W    V:Y    W:V    W:W    X:K    X:X    Y:T    Y:V    Y:Y    Z:E    Z:Q    Z:Z 
+#  77194      3  48160      7    103      7  52370      1  18088     13    103  23840      1      1  55088
+~~~~
+
+Out of all the mismatches, V's and Y's tended to end up together the most often.
 
 # Further reading
 
