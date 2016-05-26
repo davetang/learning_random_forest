@@ -158,6 +158,18 @@ length(names(rf))
 # components in the test compnent, if exist) of the combined object will be NULL.
 setdiff(names(r), names(rf))
 # [1] "err.rate"  "confusion"
+
+# we can generate the confusion matrix using table()
+table(df$class, r$predicted)
+
+# error rate
+table(df$class == r$predicted)
+#
+# FALSE  TRUE 
+#   628 19372
+# as a percentage
+(1 - (unname(table(df$class == r$predicted)[2]) / length(r$predicted))) * 100
+# [1] 3.14
 ~~~~
 
 # Proximity
