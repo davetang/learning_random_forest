@@ -110,6 +110,126 @@ varImpPlot(r)
 
 ![Variance Importance Plot](image/var_imp_plot.png)
 
+# Regression
+
+Using the `airquality` dataset that comes with base R
+
+~~~~{.r}
+library(randomForest)
+
+data(airquality)
+head(airquality)
+#   Ozone Solar.R Wind Temp Month Day
+# 1    41     190  7.4   67     5   1
+# 2    36     118  8.0   72     5   2
+# 3    12     149 12.6   74     5   3
+# 4    18     313 11.5   62     5   4
+# 5    NA      NA 14.3   56     5   5
+# 6    28      NA 14.9   66     5   6
+
+# following the example from ?randomForest
+ozone.rf <- randomForest(Ozone ~ ., data=airquality, mtry=3, importance=TRUE, na.action=na.omit)
+print(ozone.rf)
+# 
+# Call:
+#  randomForest(formula = Ozone ~ ., data = airquality, mtry = 3,      importance = TRUE, na.action = na.omit) 
+#                Type of random forest: regression
+#                      Number of trees: 500
+# No. of variables tried at each split: 3
+# 
+#           Mean of squared residuals: 303.8304
+#                     % Var explained: 72.31
+
+# predicted values
+predicted <- ozone.rf$predicted
+
+# original values
+# not all the original values were predicted
+# hence we need to subset based on what was predicted
+original  <- airquality$Ozone[sort(as.numeric(names(ozone.rf$predicted)))]
+
+# fit a linear model
+# Y ~ X, where Y is the dependent variable and X is the independent variable
+fit       <- lm(predicted~original)
+summary(fit)
+#
+# Call:
+# lm(formula = predicted ~ original)
+# 
+# Residuals:
+#     Min      1Q  Median      3Q     Max 
+# -51.512  -7.919  -1.074   6.660  54.777 
+# 
+# Coefficients:
+#             Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)  13.1775     2.2126   5.956 3.22e-08 ***
+# original      0.6988     0.0413  16.919  < 2e-16 ***
+# ---
+# Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# Residual standard error: 14.41 on 109 degrees of freedom
+# Multiple R-squared:  0.7242,	Adjusted R-squared:  0.7217 
+# F-statistic: 286.3 on 1 and 109 DF,  p-value: < 2.2e-16
+
+plot(original, predicted, pch=19)
+abline(fit, col=2)
+~~~~
+
+![Random Forest regression](image/random_forest_regression.png)
+
+# Random Forest on breast cancer data
+
+~~~~{.r}
+library(randomForest)
+
+data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data'
+df <- read.table(file=url(data_url), header=FALSE, sep=',')
+
+colnames(df) <- c('sample_code_number',
+                  'clump_thickness',
+                  'uniformity_of_cell_size',
+                  'uniformity_of_cell_shape',
+                  'marginal_adhesion',
+                  'single_epithelial_cell_size',
+                  'bare_nuclei',
+                  'bland_chromatin',
+                  'normal_nucleoli',
+                  'mitoses',
+                  'class')
+
+# remove sample code number
+df <- df[,-1]
+
+# change the class
+# 2 for benign will be 0 and
+# 4 for malignant will be 1
+df$class <- factor(ifelse(df$class==4, 1, 0))
+
+r <- randomForest(class ~ ., data=df, importance=TRUE, proximity=TRUE)
+
+print(r)
+# 
+# Call:
+#  randomForest(formula = class ~ ., data = df, importance = TRUE,      proximity = TRUE, do.trace = 100) 
+#                Type of random forest: classification
+#                      Number of trees: 500
+# No. of variables tried at each split: 3
+# 
+#         OOB estimate of  error rate: 3.15%
+# Confusion matrix:
+#     0   1 class.error
+# 0 443  15  0.03275109
+# 1   7 234  0.02904564
+
+library(ROCR)
+
+pred <- prediction(as.numeric(r$predicted), as.numeric(df$class))
+perf <- performance(pred,"tpr","fpr")
+plot(perf)
+~~~~
+
+![ROC curve using ROCR](image/breast_cancer_roc.png)
+
 # Parallelisation
 
 The `combine()` function in `randomForest` allows us to combine an ensemble of trees. Using the `doSNOW` and `foreach` packages, we can train several forests in parallel and combine them.
