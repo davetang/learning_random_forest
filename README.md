@@ -223,7 +223,18 @@ print(r)
 
 library(ROCR)
 
-pred <- prediction(as.numeric(r$predicted), as.numeric(df$class))
+# use votes, which are the fraction of (OOB) votes from the random forest
+# in the first row, all trees voted for class 0, which is benign
+head(r$votes)
+#           0          1
+# 1 1.0000000 0.00000000
+# 2 0.1222222 0.87777778
+# 3 1.0000000 0.00000000
+# 4 0.1123596 0.88764045
+# 5 0.9940828 0.00591716
+# 6 0.0000000 1.00000000
+
+pred <- prediction(r$votes[,2], as.numeric(df$class)-1)
 perf <- performance(pred,"tpr","fpr")
 plot(perf)
 ~~~~
