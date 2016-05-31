@@ -19,7 +19,7 @@ From the glossary of this review: [Machine learning applications in genetics and
 
 In the introduction, I have outlined the main concept behind the Random Forest algorithm; this section provides more information.
 
-The name Random Forest kinda describes the method; a forest is made up of trees and these trees are randomly build. We have a dataset and a random subset (using bootstrap resampling) of it is used to build a decision tree; this sample is typically half of the dataset. This process is repeated again to create a second random subset that is used to build a second decision tree. Since these are random subsets, the predictions made by the second tree should be different from the first tree. At the end, we will have hundreds of trees (a forest) each built from a slightly different subsets of the dataset and each generating different predictions. To add more randomness to the trees, a subset of candidate features/predictors/variables are used to produce a split in a decision tree. For example, if there were 100 predictors, a random subset of 10 will be used at each node to define the best split, instead of the full set of 100. Note that a new random subset of predictors are used at each node; this is different from selecting a random subset of predictors and using that random subset to build the entire tree. The number of predictors to consider at each node is a key parameter and it is recommended that empirical tests be conducted to fidn the best value; the square root of the number of available predictors is usually recommended as a good starting point. Finally, averaging or majority voting are used to combine all the separate predictions made by the individual trees.
+The name Random Forest kinda describes the method; a forest is made up of trees and these trees are randomly build. We have a dataset and a random subset (using bootstrap resampling) of it is used to build a decision tree; this sample is typically half of the dataset. This process is repeated again to create a second random subset that is used to build a second decision tree. Since these are random subsets, the predictions made by the second tree should be different from the first tree. At the end, we will have hundreds of trees (a forest) each built from a slightly different subsets of the dataset and each generating different predictions. To add more randomness to the trees, a subset of candidate features/predictors/variables are used to produce a split in a decision tree. For example, if there were 100 predictors, a random subset of 10 will be used at each node to define the best split, instead of the full set of 100. Note that a new random subset of predictors are used at each node; this is different from selecting a random subset of predictors and using that random subset to build the entire tree. The number of predictors to consider at each node is a key parameter and it is recommended that empirical tests be conducted to find the best value; the square root of the number of available predictors is usually recommended as a good starting point. Finally, averaging or majority voting are used to combine all the separate predictions made by the individual trees.
 
 Each tree in a Random Forest was built using a random subset and thus we automatically have holdout data for that particular tree; this is known as "Out Of Bag" (OOB) data. Every case in the full dataset will be "in bag" for some trees and "out of bag" for other trees; this is used to evaluate the Random Forest classifier. For example, if a particular case, _x_, was used in 250 trees and not used in another 250 trees, we can apply _x_ to the trees that didn't use it for training. Since _x_ was never used to generate any of the 250 trees, the result provides an assessment of the reliability of the Random Forest classifier. This can be carried out across all the cases in the dataset. Due to this OOB feature in the Random Forest algorithm, we do not need to create an additional holdout or testing dataset.
 
@@ -27,23 +27,19 @@ The Random Forest method also provides a measure of how close each case is to an
 
 Another useful feature of the Random Forest method is its estimation of relative predictor importance. The method is based on measuring the effect of the classifier if one of the predictors was removed. This is performed by randomly scrambling the values associated to a given predictor; the scrambling is done by moving values from a specific row to another row. The scrambling is performed one predictor at a time and predictive accuracy is measured for each predictor to obtain an estimation of relative predictor importance; note that the data is re-scramble for each predictor being tested.
 
-# An example
-
-Refer to the R Markdown file, [random_forest.Rmd](https://github.com/davetang/learning_random_forest/blob/master/random_forest.Rmd), for more information.
-
-* Using this [Wine Data Set](http://archive.ics.uci.edu/ml/datasets/Wine).
-* There are 13 features/predictors/variables, which are the results of a chemical analysis of wines
-* There are three labels, representing three different [cultivars](https://en.wikipedia.org/wiki/Cultivar)
-* We can build a Random Forest classifier to classify wines based on their 13 features
-* <http://davetang.org/muse/2012/12/20/random-forests-in-predicting-wines/>
-
 # Classification and Regression Trees
 
 * <http://www.stat.wisc.edu/~loh/treeprogs/guide/wires11.pdf>
 
-# Random Forest and R
+# Classifying wines
 
-* <http://mkseo.pe.kr/stats/?p=220>
+Refer to the R Markdown file, [random_forest.Rmd](https://github.com/davetang/learning_random_forest/blob/master/random_forest.Rmd), for more information.
+
+* Classifying wines from this [dataset](http://archive.ics.uci.edu/ml/datasets/Wine).
+* There are 13 features/predictors/variables, which are the results of a chemical analysis of wines
+* There are three labels, representing three different [cultivars](https://en.wikipedia.org/wiki/Cultivar)
+* We can build a Random Forest classifier to classify wines based on their 13 features
+* Related blog post <http://davetang.org/muse/2012/12/20/random-forests-in-predicting-wines/>
 
 ~~~~{.r}
 install.packages("randomForest")
@@ -237,6 +233,12 @@ head(r$votes)
 pred <- prediction(r$votes[,2], as.numeric(df$class)-1)
 perf <- performance(pred,"tpr","fpr")
 plot(perf)
+
+# Area under the curve
+auc <- performance(pred, measure = "auc")
+auc@y.values
+
+legend('bottomright', legend = paste("AUC = ", auc@y.values))
 ~~~~
 
 ![ROC curve using ROCR](image/breast_cancer_roc.png)
@@ -352,7 +354,8 @@ Out of all the mismatches, V's and Y's tended to end up together the most often.
 
 * [Machine learning 101](http://www.astroml.org/sklearn_tutorial/general_concepts.html)
 * [Some Things Every Biologist Should Know About Machine Learning](http://www.bioconductor.org/help/course-materials/2003/Milan/Lectures/MachineLearning.pdf)
-* [An introduction to ROC analysis](https://ccrma.stanford.edu/workshops/mir2009/references/ROCintro.pdf)
 * Decision tree learning on [Wikipedia](https://en.wikipedia.org/wiki/Decision_tree_learning)
+* [An introduction to ROC analysis](https://ccrma.stanford.edu/workshops/mir2009/references/ROCintro.pdf)
+* [A small introduction to the ROCR package](https://hopstat.wordpress.com/2014/12/19/a-small-introduction-to-the-rocr-package/)
 * [Identifying Mendelian disease genes with the variant effect scoring tool](http://www.ncbi.nlm.nih.gov/pubmed/23819870)
 
