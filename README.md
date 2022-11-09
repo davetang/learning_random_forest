@@ -1,39 +1,148 @@
-# Introduction
+Table of Contents
+=================
 
-The Random Forest method is based on [decision trees](https://en.wikipedia.org/wiki/Decision_tree); hundreds of them. A decision tree can be thought of as a flow chart that you follow through to classify a case; I have a [blog post](http://davetang.org/muse/2013/03/12/building-a-classification-tree-in-r/) on building a decision tree (a.k.a. classification tree) in R. To illustrate the process of building a Random Forest classifier, consider a two-dimensional dataset with _N_ cases (rows) that has _M_ variables (columns). The Random Forest algorithm will start building independent decision trees; the default number of trees is 500 in the randomForest R package. For each tree, a random subset of _n_ cases is sampled from all available _N_ cases; the cases not used in tree construction are the Out Of Bag (OOB) cases. However, unlike typical decision trees, at each node of a tree, a random number of _m_ variables is used to determine the decision at the node; _m_ is typically the square root of _M_ and the best split is calculated based on the _m_ variables. When classifying a new case, it is fed down each tree and is classified as a specific class or label. This procedure is carried out across all the trees in the ensemble and the majority class or label is assigned to the new case.
+* [Random Forest](#random-forest)
+* [Terminology](#terminology)
+* [Random Forest in more detail](#random-forest-in-more-detail)
+* [An example classifying wines](#an-example-classifying-wines)
+* [Regression](#regression)
+* [Random Forest on breast cancer data](#random-forest-on-breast-cancer-data)
+* [Proximity](#proximity)
+* [Parallelisation](#parallelisation)
+* [Technical points](#technical-points)
+* [Further reading](#further-reading)
 
-For more information read on...
+Created by [gh-md-toc](https://github.com/ekalinin/github-markdown-toc)
+
+# Random Forest
+
+The Random Forest approach is an ensemble learning method based on many
+[decision trees](https://en.wikipedia.org/wiki/Decision_tree). I have
+[written](http://davetang.org/muse/2013/03/12/building-a-classification-tree-in-r/)
+about decision trees but in essence you can think of a decision tree as a flow
+chart where you make decisions based on a set of criteria. To illustrate the
+process of building a Random Forest classifier, consider a two-dimensional
+dataset with `N` cases (rows) that has `M` variables (columns). The Random
+Forest algorithm will build independent decision trees but only using a random
+subset of the data. For each tree, a random subset of `n` cases is sampled from
+all available `N` cases; the cases not used in the tree construction are called
+the Out Of Bag (OOB) cases. In addition, at each node (decision point) of a
+tree, a random number of `m` variables is used from all available `M`
+variables. The number of `m` variables to use is important and typically the
+square root of `M` is used, e.g. with 100 variables, only 10 is used in each
+individual decision tree. Once a set of independent trees have been constructed
+(the default number of trees is 500 in the `randomForest` R package), a new
+case can be classified by applying it each tree and collecting the final
+classification result. For example if 500 trees were built, there would be 500
+individual classifications. The final step is to average the results (called
+majority voting) and the major classification is assigned to the new case.
+
+More details are provided [below](#random-forest-in-more-detail).
 
 # Terminology
 
-From the glossary of this review: [Machine learning applications in genetics and genomics](http://www.ncbi.nlm.nih.gov/pubmed/25948244).
+Before we get into more details, make sure you understand the following terms,
+which were adapted from the glossary of [Machine learning applications in
+genetics and genomics](http://www.ncbi.nlm.nih.gov/pubmed/25948244).
 
-* Features/Predictors/Variables: Single measurements or descriptors of examples used in a machine learning task.
-* Label: The target of a prediction task. In classification, the label is discrete (for example, 'expressed' or 'not expressed'); in regression, the label is of real value (for example, a gene expression value).
-* Feature selection: The process of choosing a smaller set of features from a larger set, either before applying a machine learning method or as part of training.
-* Sensitivity: (Also known as recall). The fraction of positive examples identified; it is given by the number of positive predictions that are correct divided by the total number of positive examples.
-* Precision: The fraction of positive predictions that are correct; it is given by the number of positive predictions that are correct divided by the total number of positive predictions.
-* Precision-recall curve: For a binary classifier applied to a given data set, a curve that plots precision (y axis) versus recall (x axis) for a variety of classification thresholds.
+* Features / predictors / independent variables are single measurements or
+  descriptors of examples used in a machine learning task. For a person, age,
+  height, weight, etc. are all individual features.
+* Labels / classes are the targets of a prediction task; using our person
+example, we may want to predict whether they like basketball. In
+classification, the label is discrete (for example, 'likes basketball' or
+'dislikes'); in regression, the label is a real value (for example, predicting
+a person's height).
+* Feature selection refers to the process of choosing a smaller set of features
+from a larger set, either before applying a machine learning method or as part
+of training. For example removing useless features (features with little to no
+variance) or correlated features.
+* Sensitivity (also known as recall) refers to the fraction of positive
+examples identified; it is calculated by taking the number of positive
+predictions that are correct and dividing them by the total number of positive
+examples.
+* Precision refers to the fraction of positive predictions that are correct; it
+is calculated by the number of positive predictions that are correct divided by
+the total number of positive predictions.
+* The Precision-recall curve is a curve that plots precision (y-axis) against
+recall (x-axis) at various classification thresholds and is used for binary
+classifiers.
 
-# More details
+# Random Forest in more detail
 
-In the introduction, I have outlined the main concept behind the Random Forest algorithm; this section provides more information.
+The main idea behind the Random Forest approach was outlined at the
+[start](#random-forest); this section provides a bit more detail.
 
-The name Random Forest kinda describes the method; a forest is made up of trees and these trees are randomly build. We have a dataset and a random subset (using bootstrap resampling) of it is used to build a decision tree; this sample is typically half of the dataset. This process is repeated again to create a second random subset that is used to build a second decision tree. Since these are random subsets, the predictions made by the second tree should be different from the first tree. At the end, we will have hundreds of trees (a forest) each built from a slightly different subsets of the dataset and each generating different predictions. To add more randomness to the trees, a subset of candidate features/predictors/variables are used to produce a split in a decision tree. For example, if there were 100 predictors, a random subset of 10 will be used at each node to define the best split, instead of the full set of 100. Note that a new random subset of predictors are used at each node; this is different from selecting a random subset of predictors and using that random subset to build the entire tree. The number of predictors to consider at each node is a key parameter and it is recommended that empirical tests be conducted to find the best value; the square root of the number of available predictors is usually recommended as a good starting point. Finally, averaging or majority voting are used to combine all the separate predictions made by the individual trees.
+The name Random Forest is nice because it describes the method; a forest is
+made up of trees and these trees are randomly build. For a given dataset, a
+random subset (using [bootstrap
+resampling](https://en.wikipedia.org/wiki/Bootstrapping_(statistics))) is used
+to build a decision tree and this sample is typically half of the dataset. This
+process is repeated again to create a second random subset that is used to
+build a second decision tree. Since these are random subsets, the predictions
+made by the second tree could be different from the first tree. In the end, we
+will have hundreds of trees (a forest) that were built from a slightly
+different subset of the dataset and each generating (potentially) different
+predictions.
 
-Each tree in a Random Forest was built using a random subset and thus we automatically have holdout data for that particular tree; this is known as "Out Of Bag" (OOB) data. Every case in the full dataset will be "in bag" for some trees and "out of bag" for other trees; this is used to evaluate the Random Forest classifier. For example, if a particular case, _x_, was used in 250 trees and not used in another 250 trees, we can apply _x_ to the trees that didn't use it for training. Since _x_ was never used to generate any of the 250 trees, the result provides an assessment of the reliability of the Random Forest classifier. This can be carried out across all the cases in the dataset. Due to this OOB feature in the Random Forest algorithm, we do not need to create an additional holdout or testing dataset.
+To add more randomness to the trees, a subset of features/predictors/variables
+are used to produce a split in the decision trees. For example, if there were
+100 predictors, a random subset of 10 will be used at each node to define the
+best split, instead of the full set of 100. Note that a *new random subset of
+predictors are used at each node*; this is different from selecting a random
+subset of predictors and using that random subset to build the entire tree. The
+number of predictors to consider at each node is a key parameter and it is
+recommended that empirical tests (i.e. model tuning) be conducted to find the
+best value; the square root of the number of available predictors is usually
+recommended as a good starting point. Finally, majority voting (i.e. averaging)
+is used to combine all the separate predictions made by the individual trees.
 
-The Random Forest method also provides a measure of how close each case is to another case in the dataset, which is known as the "proximity". The procedure for calculating the proximity of two cases is to drop a pair of records down each individual tree in a Random Forest, and counting the number of times the two cases end up at the same terminal node, i.e. the same classification, and dividing by the number of trees tested. By carrying out this step across all pairs of cases, a proximity can be constructed. The proximity matrix provides a measure of how similar any two cases are in a dataset. One can perform hierarchical clustering on the proximity matrix to examine the underlying structure of a dataset.
+Typically in machine learning/predictive modelling, a subset of data is "held
+out" and used for model validation since this holdout data was not used in
+training the model. Each tree in the random forest was built using a random
+subset and thus we automatically have holdout data for that particular tree;
+this is known as "Out Of Bag" (OOB) data. Every case in the full dataset will
+be _in bag_ for some trees and _out of bag_ for other trees; this can be used
+to evaluate the Random Forest classifier. For example, if a particular case,
+`x`, was used in 250 trees and not used in another 250 trees, we can apply `x`
+to the trees that did not use it for training. Since `x` was never used to
+generate any of the 250 trees, the result provides an assessment of the
+reliability of the Random Forest classifier. This can be carried out across all
+the cases in the dataset. Due to this OOB feature in the Random Forest
+algorithm, we do not need to create an additional holdout or testing dataset as
+pointed out in the
+[paper](https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf) describing
+the Random Forest approach:
 
-Another useful feature of the Random Forest method is its estimation of relative predictor importance. The method is based on measuring the effect of the classifier if one of the predictors was removed. This is performed by randomly scrambling the values associated to a given predictor; the scrambling is done by moving values from a specific row to another row. The scrambling is performed one predictor at a time and predictive accuracy is measured for each predictor to obtain an estimation of relative predictor importance; note that the data is re-scramble for each predictor being tested.
+>Therefore, using the out-of-bag estimate removes the need for a set aside test set.
 
-# Classification and Regression Trees
+The Random Forest method also provides a measure of how close each case is to
+another case in the dataset, which is known as the "proximity". The procedure
+for calculating the proximity of two cases is to drop a pair of records down
+each individual tree in a Random Forest, and counting the number of times the
+two cases end up at the same terminal node, i.e. the same classification, and
+dividing by the number of trees tested. By carrying out this step across all
+pairs of cases, a proximity can be constructed. The proximity matrix provides
+a measure of how similar any two cases are in a dataset and can be used with
+hierarchical clustering to examine the underlying structure of a dataset.
 
-* <http://www.stat.wisc.edu/~loh/treeprogs/guide/wires11.pdf>
+Another useful feature of the Random Forest method is its estimation of
+relative predictor importance. The method is based on measuring the effect of
+the classifier if one of the predictors was removed. This is performed by
+randomly scrambling the values associated to a given predictor; the scrambling
+is done by moving values from a specific row to another row. The scrambling is
+performed one predictor at a time (the data is re-scrambled for each predictor
+being tested) and predictive accuracy is measured to obtain an estimation of
+relative predictor importance. If the performance of the classifier is
+unaffected by the scrambling then the predictor is relatively unimportant. In
+contrast, if the scrambling caused a decrease in performance, then it is
+relative important.
 
-# Classifying wines
+# An example classifying wines
 
-Refer to the R Markdown file, [random_forest.Rmd](https://github.com/davetang/learning_random_forest/blob/master/random_forest.Rmd), for more information.
+Refer to the R Markdown file,
+[random_forest.Rmd](https://github.com/davetang/learning_random_forest/blob/master/random_forest.Rmd),
+for more information.
 
 * Classifying wines from this [dataset](http://archive.ics.uci.edu/ml/datasets/Wine).
 * There are 13 features/predictors/variables, which are the results of a chemical analysis of wines
@@ -41,7 +150,7 @@ Refer to the R Markdown file, [random_forest.Rmd](https://github.com/davetang/le
 * We can build a Random Forest classifier to classify wines based on their 13 features
 * Related blog post <http://davetang.org/muse/2012/12/20/random-forests-in-predicting-wines/>
 
-~~~~{.r}
+```r
 install.packages("randomForest")
 library(randomForest)
 
@@ -96,21 +205,25 @@ boxplot(df$colour ~ df$class, main="Colour by class")
 boxplot(df$alcohol ~ df$class, main="Alcohol by class")
 
 ggplot(df, aes(x=alcohol, y=colour, colour=class)) + geom_point()
-~~~~
+```
 
 ![Scatter plot of alcohol versus colour by class](image/alcohol_colour.png)
 
-~~~~{.r}
+Predictor importance.
+
+```r
 varImpPlot(r)
-~~~~
+```
 
 ![Variance Importance Plot](image/var_imp_plot.png)
 
 # Regression
 
-Using the `airquality` dataset that comes with base R
+Random Forest can be used for regression tasks, i.e. making numerical
+predictions, as well as classification. The example below uses the `airquality`
+dataset that comes with R.
 
-~~~~{.r}
+```r
 library(randomForest)
 
 data(airquality)
@@ -169,13 +282,13 @@ summary(fit)
 
 plot(original, predicted, pch=19)
 abline(fit, col=2)
-~~~~
+```
 
 ![Random Forest regression](image/random_forest_regression.png)
 
 # Random Forest on breast cancer data
 
-~~~~{.r}
+```r
 library(randomForest)
 
 data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data'
@@ -239,15 +352,64 @@ auc <- performance(pred, measure = "auc")
 auc@y.values
 
 legend('bottomright', legend = paste("AUC = ", auc@y.values))
-~~~~
+```
 
 ![ROC curve using ROCR](image/breast_cancer_roc.png)
 
+# Proximity
+
+Proximity is calculated by tallying the number of times a pair of records ends
+up at the same terminal node for each tree.
+
+```r
+library(randomForest)
+
+data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/letter-recognition/letter-recognition.data'
+df <- read.table(file=url(data_url), header=FALSE, sep=',')
+colnames(df) <- c('class', 'xbox', 'ybox', 'width', 'high', 'onpix', 'xbar', 'ybar', 'x2bar', 'y2bar', 'xybar', 'x2ybr', 'xy2br', 'xege', 'xegvy', 'yege', 'yegvx')
+r <- randomForest(class ~ ., data=df, importance=TRUE, proximity=TRUE)
+
+# proximity matrix
+mat <- r$proximity
+# name the rows and columns
+rownames(mat) <- df$class
+colnames(mat) <- df$class
+
+# use the which() function to calculate a
+# matrix of which elements in the proximity matrix
+# are greater than 0.5 but not 1
+w <- which(mat > 0.5 & mat != 1, arr.ind = TRUE)
+
+# function to retrieve row and column names
+# from the w matrix
+get_row_col <- function(x, m){
+  my_row <- rownames(m)[x[1]]
+  my_col <- colnames(m)[x[2]]
+  paste(my_row, my_col, sep = ':')
+}
+
+table(unname(apply(w, 1, get_row_col, m=mat)))
+
+#    A:A    A:G    B:B    B:H    C:C    D:D    D:H    D:O    E:E    E:G    E:K    E:L    E:S    E:Z    F:F    F:P    G:A 
+# 191944      1  14124      1  26514  10512     18      2  28560      4      1      2      1      1  18276     13      1 
+#    G:E    G:G    H:B    H:D    H:H    H:K    I:I    I:J    J:I    J:J    K:E    K:H    K:K    K:R    K:X    L:E    L:L 
+#      4  10492      1     18  26694      4  81548     18     18  61394      1      4  13878      2      1      2 109546 
+#    M:M    M:V    N:N    O:D    O:O    O:Q    P:F    P:P    Q:O    Q:Q    Q:Z    R:K    R:R    S:E    S:S    T:T    T:Y 
+#  49488      3  41938      2  12528      7     13  37994      7   6286      1      2  13730      1  10212  42168     13 
+#    U:U    V:M    V:V    V:W    V:Y    W:V    W:W    X:K    X:X    Y:T    Y:V    Y:Y    Z:E    Z:Q    Z:Z 
+#  77194      3  48160      7    103      7  52370      1  18088     13    103  23840      1      1  55088
+```
+
+Out of all the mismatches, V's and Y's tended to end up together the most often.
+
 # Parallelisation
 
-The `combine()` function in `randomForest` allows us to combine an ensemble of trees. Using the `doSNOW` and `foreach` packages, we can train several forests in parallel and combine them.
+We can utilise parallelisation to speed up calculations, which is especially
+useful for larger datasets. The `combine()` function in `randomForest` allows
+us to combine an ensemble of trees. Using the `doSNOW` and `foreach` packages,
+we can train several forests in parallel and combine them.
 
-~~~~{.r}
+```r
 library(randomForest)
 
 # http://archive.ics.uci.edu/ml/datasets/Letter+Recognition
@@ -303,52 +465,18 @@ table(df$class == r$predicted)
 # as a percentage
 (1 - (unname(table(df$class == r$predicted)[2]) / length(r$predicted))) * 100
 # [1] 3.14
-~~~~
+```
 
-# Proximity
+# Technical points
 
-Proximity is calculated by tallying the number of times a pair of records ends up at the same terminal node for each tree.
+* [Should we remove correlated features](https://stats.stackexchange.com/questions/141619/wont-highly-correlated-variables-in-random-forest-distort-accuracy-and-feature)?
 
-~~~~{.r}
-library(randomForest)
-
-data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/letter-recognition/letter-recognition.data'
-df <- read.table(file=url(data_url), header=FALSE, sep=',')
-colnames(df) <- c('class', 'xbox', 'ybox', 'width', 'high', 'onpix', 'xbar', 'ybar', 'x2bar', 'y2bar', 'xybar', 'x2ybr', 'xy2br', 'xege', 'xegvy', 'yege', 'yegvx')
-r <- randomForest(class ~ ., data=df, importance=TRUE, proximity=TRUE)
-
-# proximity matrix
-mat <- r$proximity
-# name the rows and columns
-rownames(mat) <- df$class
-colnames(mat) <- df$class
-
-# use the which() function to calculate a
-# matrix of which elements in the proximity matrix
-# are greater than 0.5 but not 1
-w <- which(mat > 0.5 & mat != 1, arr.ind = TRUE)
-
-# function to retrieve row and column names
-# from the w matrix
-get_row_col <- function(x, m){
-  my_row <- rownames(m)[x[1]]
-  my_col <- colnames(m)[x[2]]
-  paste(my_row, my_col, sep = ':')
-}
-
-table(unname(apply(w, 1, get_row_col, m=mat)))
-
-#    A:A    A:G    B:B    B:H    C:C    D:D    D:H    D:O    E:E    E:G    E:K    E:L    E:S    E:Z    F:F    F:P    G:A 
-# 191944      1  14124      1  26514  10512     18      2  28560      4      1      2      1      1  18276     13      1 
-#    G:E    G:G    H:B    H:D    H:H    H:K    I:I    I:J    J:I    J:J    K:E    K:H    K:K    K:R    K:X    L:E    L:L 
-#      4  10492      1     18  26694      4  81548     18     18  61394      1      4  13878      2      1      2 109546 
-#    M:M    M:V    N:N    O:D    O:O    O:Q    P:F    P:P    Q:O    Q:Q    Q:Z    R:K    R:R    S:E    S:S    T:T    T:Y 
-#  49488      3  41938      2  12528      7     13  37994      7   6286      1      2  13730      1  10212  42168     13 
-#    U:U    V:M    V:V    V:W    V:Y    W:V    W:W    X:K    X:X    Y:T    Y:V    Y:Y    Z:E    Z:Q    Z:Z 
-#  77194      3  48160      7    103      7  52370      1  18088     13    103  23840      1      1  55088
-~~~~
-
-Out of all the mismatches, V's and Y's tended to end up together the most often.
+The question poses a scenario where there are 1,000 correlated features and one
+uncorrelated feature all with the same predictive power. The potential problem
+is that we may not use the uncorrelated feature since it may not be sampled by
+the trees, which also highlights the importance of setting the number of
+features to use. While the random selection of features helps mitigates the
+issue of multi-collinearity, highly correlated features should be removed.
 
 # Further reading
 
@@ -358,4 +486,6 @@ Out of all the mismatches, V's and Y's tended to end up together the most often.
 * [An introduction to ROC analysis](https://ccrma.stanford.edu/workshops/mir2009/references/ROCintro.pdf)
 * [A small introduction to the ROCR package](https://hopstat.wordpress.com/2014/12/19/a-small-introduction-to-the-rocr-package/)
 * [Identifying Mendelian disease genes with the variant effect scoring tool](http://www.ncbi.nlm.nih.gov/pubmed/23819870)
+* [Classification and regression trees](https://pages.stat.wisc.edu/~loh/treeprogs/guide/wires11.pdf)
+* [Tuning a Random Forest model](https://rpubs.com/phamdinhkhanh/389752)
 
