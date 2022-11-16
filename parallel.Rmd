@@ -1,0 +1,143 @@
+---
+title: "Running Random Forests in parallel"
+output:
+   md_document:
+      variant: markdown
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.path = "img/")
+```
+
+## Introduction
+
+There is a `combine` function in the `randomForest` package that combines two or more ensembles of trees into one. Therefore, we can train ensembles in parallel and combine them! This is useful for large datasets or for testing different parameters.
+
+Install the required packages if missing and then load them.
+
+```{r load_package, message=FALSE, warning=FALSE}
+.libPaths('/packages')
+my_packages <- c('randomForest', 'foreach', 'doParallel', 'parallel', 'doRNG')
+
+for (my_package in my_packages){
+   if(!require(my_package, character.only = TRUE)){
+      install.packages(my_package, '/packages')
+      library(my_package, character.only = TRUE)
+   }
+}
+```
+
+## Load data
+
+We will use the [Letter Recognition Data Set](https://archive.ics.uci.edu/ml/datasets/Letter+Recognition) which has 20,000 cases, 16 features, and 26 labels.
+
+```{r load_data}
+my_url <- 'https://archive.ics.uci.edu/ml/machine-learning-databases/letter-recognition/letter-recognition.data'
+my_df <- read.table(file=url(my_url), header=FALSE, sep=',')
+colnames(my_df) <- c('class', 'xbox', 'ybox', 'width', 'high', 'onpix', 'xbar', 'ybar', 'x2bar', 'y2bar', 'xybar', 'x2ybr', 'xy2br', 'xege', 'xegvy', 'yege', 'yegvx')
+my_df$class <- factor(my_df$class, levels = LETTERS)
+
+dim(my_df)
+table(my_df$class)
+```
+
+Train random forests model with 2,000 trees without parallelisation.
+
+```{r my_rf}
+set.seed(1984)
+my_time <- system.time(
+   my_rf <- randomForest(
+      class ~ .,
+      data = my_df,
+      ntree = 2000
+   )
+)
+
+my_time
+
+sum(my_rf$predicted == my_df$class) / length(my_df$class)
+```
+
+Train random forests with 2,000 trees in parallel. Note the line of code `registerDoRNG(seed = 1984)`: this is to ensure that we train the same model even with parallelisation.
+
+```{r my_rf_par}
+cl <- makeCluster(10)
+registerDoParallel(cl)
+registerDoRNG(seed = 1984)
+
+my_time_par <- system.time(
+   my_rf_par <- foreach(
+      ntree = rep(200, 10),
+      .combine = combine,
+      .packages = 'randomForest'
+   ) %dopar% {
+      randomForest(class ~ ., data = my_df, ntree=ntree)
+   }
+)
+stopCluster(cl)
+
+my_time_par
+
+sum(my_rf_par$predicted == my_df$class) / length(my_df$class)
+```
+
+[Set `.multicombine = TRUE`](https://stackoverflow.com/questions/14106010/parallel-execution-of-random-forest-in-r) to further increase the speed up. As per the [documentation](https://cran.r-project.org/web/packages/foreach/foreach.pdf), the `.multicombine` argument is a:
+
+>logical flag indicating whether the .combine function can accept more than two arguments. If an arbitrary .combine function is specified, by default, that function will always be called with two arguments. If it can take more than two arguments, then setting .multicombine to TRUE could improve the performance. The default value is FALSE unless the .combine function is cbind, rbind, or c, which are known to take more than two arguments.
+
+```{r my_rf_par_mc}
+cl <- makeCluster(10)
+registerDoParallel(cl)
+registerDoRNG(seed = 1984)
+
+my_time_par_mc <- system.time(
+   my_rf_par_mc <- foreach(
+      ntree = rep(200, 10),
+      .combine = combine,
+      .multicombine = TRUE,
+      .packages = 'randomForest'
+   ) %dopar% {
+      randomForest(class ~ ., data = my_df, ntree=ntree)
+   }
+)
+stopCluster(cl)
+
+my_time_par_mc
+
+sum(my_rf_par_mc$predicted == my_df$class) / length(my_df$class)
+```
+
+As noted in the [documentation](https://cran.r-project.org/web/packages/randomForest/randomForest.pdf) in the `combine` section:
+
+>The confusion, err.rate, mse and rsq components (as well as the corresponding components in the test compnent, if exist) of the combined object will be NULL.
+
+But we can calculate those ourselves, if we want.
+
+```{r setdiff}
+# confusion matrix, not run
+# table(my_df$class, my_rf_par_mc$predicted)
+
+setdiff(names(my_rf), names(my_rf_par_mc))
+```
+
+Most predictions are the same between the model trained without and with parallelisation.
+
+```{r compare_rf}
+table(my_rf$predicted == my_rf_par_mc$predicted)
+```
+
+## Session info
+
+Time built.
+
+```{r time, echo=FALSE}
+Sys.time()
+```
+
+Session info.
+
+```{r session_info, echo=FALSE}
+sessionInfo()
+```
