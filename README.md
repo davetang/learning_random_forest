@@ -404,68 +404,219 @@ Out of all the mismatches, V's and Y's tended to end up together the most often.
 
 # Parallelisation
 
-We can utilise parallelisation to speed up calculations, which is especially
-useful for larger datasets. The `combine()` function in `randomForest` allows
-us to combine an ensemble of trees. Using the `doSNOW` and `foreach` packages,
-we can train several forests in parallel and combine them.
+There is a `combine` function in the `randomForest` package that
+combines two or more ensembles of trees into one. Therefore, we can
+train ensembles in parallel and combine them! This is useful for large
+datasets or for testing different parameters.
 
-```r
-library(randomForest)
+Install the required packages if missing and then load them.
 
-# http://archive.ics.uci.edu/ml/datasets/Letter+Recognition
-# 20,000 by 16 dataset
-data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/letter-recognition/letter-recognition.data'
-df <- read.table(file=url(data_url), header=FALSE, sep=',')
-colnames(df) <- c('class', 'xbox', 'ybox', 'width', 'high', 'onpix', 'xbar', 'ybar', 'x2bar', 'y2bar', 'xybar', 'x2ybr', 'xy2br', 'xege', 'xegvy', 'yege', 'yegvx')
+``` r
+.libPaths('/packages')
+my_packages <- c('randomForest', 'foreach', 'doParallel', 'parallel', 'doRNG')
 
-system.time(r <- randomForest(class ~ ., data=df, importance=TRUE, do.trace=100, proximity=TRUE))
-# ntree      OOB      1      2      3      4      5      6      7      8      9     10     11     12     13     14     15     16     17     18     19     20     21     22     23     24     25     26
-#   100:   3.58%  0.63%  3.79%  3.67%  2.61%  4.17%  5.55%  4.40%  8.72%  4.90%  5.22%  7.04%  2.76%  1.26%  3.96%  3.85%  4.36%  3.45%  4.35%  2.94%  2.39%  1.48%  3.80%  2.13%  2.16%  2.04%  2.32%
-#   200:   3.16%  0.25%  3.26%  3.12%  2.36%  3.78%  4.65%  3.75%  7.36%  4.90%  4.28%  6.09%  2.37%  1.39%  3.96%  3.45%  3.86%  3.19%  4.75%  2.94%  1.88%  1.35%  3.14%  0.80%  2.16%  1.53%  2.18%
-#   300:   3.25%  0.38%  3.39%  3.40%  2.61%  4.17%  4.65%  3.49%  7.90%  4.64%  4.69%  5.82%  2.50%  1.14%  3.83%  3.45%  4.11%  2.94%  4.75%  2.81%  2.01%  1.60%  3.40%  1.33%  2.29%  1.53%  2.32%
-#   400:   3.11%  0.51%  3.00%  2.58%  2.36%  4.17%  4.77%  3.49%  7.77%  4.90%  4.55%  5.82%  2.10%  1.14%  3.70%  3.19%  4.11%  3.19%  4.22%  2.67%  1.88%  1.60%  3.53%  0.80%  1.78%  1.53%  2.04%
-#   500:   3.09%  0.51%  2.87%  2.85%  2.98%  3.91%  4.52%  3.49%  7.63%  5.03%  4.82%  5.55%  1.97%  1.14%  3.96%  3.05%  3.74%  2.94%  4.35%  2.67%  1.63%  1.72%  3.40%  0.93%  1.78%  1.53%  1.91%
-#    user  system elapsed
-# 460.992  44.084 505.639
-
-library(foreach)
-library(doSNOW)
-registerDoSNOW(makeCluster(5, type='SOCK'))
-
-system.time(rf <- foreach(ntree = rep(100, 5), .combine = combine, .packages = "randomForest") %dopar%  randomForest(class ~ ., data=df, proximity=TRUE, importance=TRUE, ntree = ntree))
-#    user  system elapsed
-#  48.856  99.192 265.819
-
-# faster parallelisation by using .multicombine=TRUE
-# see http://stackoverflow.com/questions/14106010/parallel-execution-of-random-forest-in-r
-system.time(rfm <- foreach(ntree = rep(100, 5), .combine = combine, .multicombine=TRUE, .packages = "randomForest") %dopar%  randomForest(class ~ ., data=df, proximity=TRUE, importance=TRUE, ntree = ntree))
-#   user  system elapsed
-# 30.404  49.052 200.325
-
-length(names(r))
-# [1] 19
-
-length(names(rf))
-# [1] 17
-
-# as noted in the documentation of the Random Forest package under combine
-# The confusion, err.rate, mse and rsq components (as well as the corresponding
-# components in the test compnent, if exist) of the combined object will be NULL.
-setdiff(names(r), names(rf))
-# [1] "err.rate"  "confusion"
-
-# we can generate the confusion matrix using table()
-table(df$class, r$predicted)
-
-# error rate
-table(df$class == r$predicted)
-#
-# FALSE  TRUE 
-#   628 19372
-# as a percentage
-(1 - (unname(table(df$class == r$predicted)[2]) / length(r$predicted))) * 100
-# [1] 3.14
+for (my_package in my_packages){
+   if(!require(my_package, character.only = TRUE)){
+      install.packages(my_package, '/packages')
+      library(my_package, character.only = TRUE)
+   }
+}
 ```
+
+## Load data
+
+We will use the [Letter Recognition Data
+Set](https://archive.ics.uci.edu/ml/datasets/Letter+Recognition) which
+has 20,000 cases, 16 features, and 26 labels.
+
+``` r
+my_url <- 'https://archive.ics.uci.edu/ml/machine-learning-databases/letter-recognition/letter-recognition.data'
+my_df <- read.table(file=url(my_url), header=FALSE, sep=',')
+colnames(my_df) <- c('class', 'xbox', 'ybox', 'width', 'high', 'onpix', 'xbar', 'ybar', 'x2bar', 'y2bar', 'xybar', 'x2ybr', 'xy2br', 'xege', 'xegvy', 'yege', 'yegvx')
+my_df$class <- factor(my_df$class, levels = LETTERS)
+
+dim(my_df)
+```
+
+    ## [1] 20000    17
+
+``` r
+table(my_df$class)
+```
+
+    ## 
+    ##   A   B   C   D   E   F   G   H   I   J   K   L   M   N   O   P   Q   R   S   T 
+    ## 789 766 736 805 768 775 773 734 755 747 739 761 792 783 753 803 783 758 748 796 
+    ##   U   V   W   X   Y   Z 
+    ## 813 764 752 787 786 734
+
+Train random forests model with 2,000 trees without parallelisation.
+
+``` r
+set.seed(1984)
+my_time <- system.time(
+   my_rf <- randomForest(
+      class ~ .,
+      data = my_df,
+      ntree = 2000
+   )
+)
+
+my_time
+```
+
+    ##    user  system elapsed 
+    ##  80.620   4.132  84.950
+
+``` r
+sum(my_rf$predicted == my_df$class) / length(my_df$class)
+```
+
+    ## [1] 0.96935
+
+Train random forests with 2,000 trees in parallel. Note the line of code
+`registerDoRNG(seed = 1984)`: this is to ensure that we train the same
+model even with parallelisation.
+
+``` r
+cl <- makeCluster(10)
+registerDoParallel(cl)
+registerDoRNG(seed = 1984)
+
+my_time_par <- system.time(
+   my_rf_par <- foreach(
+      ntree = rep(200, 10),
+      .combine = combine,
+      .packages = 'randomForest'
+   ) %dopar% {
+      randomForest(class ~ ., data = my_df, ntree=ntree)
+   }
+)
+stopCluster(cl)
+
+my_time_par
+```
+
+    ##    user  system elapsed 
+    ##   5.249   4.003  19.326
+
+``` r
+sum(my_rf_par$predicted == my_df$class) / length(my_df$class)
+```
+
+    ## [1] 0.9696
+
+[Set
+`.multicombine = TRUE`](https://stackoverflow.com/questions/14106010/parallel-execution-of-random-forest-in-r)
+to further increase the speed up. As per the
+[documentation](https://cran.r-project.org/web/packages/foreach/foreach.pdf),
+the `.multicombine` argument is a:
+
+> logical flag indicating whether the .combine function can accept more
+> than two arguments. If an arbitrary .combine function is specified, by
+> default, that function will always be called with two arguments. If it
+> can take more than two arguments, then setting .multicombine to TRUE
+> could improve the performance. The default value is FALSE unless the
+> .combine function is cbind, rbind, or c, which are known to take more
+> than two arguments.
+
+``` r
+cl <- makeCluster(10)
+registerDoParallel(cl)
+registerDoRNG(seed = 1984)
+
+my_time_par_mc <- system.time(
+   my_rf_par_mc <- foreach(
+      ntree = rep(200, 10),
+      .combine = combine,
+      .multicombine = TRUE,
+      .packages = 'randomForest'
+   ) %dopar% {
+      randomForest(class ~ ., data = my_df, ntree=ntree)
+   }
+)
+stopCluster(cl)
+
+my_time_par_mc
+```
+
+    ##    user  system elapsed 
+    ##   1.443   0.885  12.394
+
+``` r
+sum(my_rf_par_mc$predicted == my_df$class) / length(my_df$class)
+```
+
+    ## [1] 0.9696
+
+As noted in the
+[documentation](https://cran.r-project.org/web/packages/randomForest/randomForest.pdf)
+in the `combine` section:
+
+> The confusion, err.rate, mse and rsq components (as well as the
+> corresponding components in the test compnent, if exist) of the
+> combined object will be NULL.
+
+But we can calculate those ourselves, if we want.
+
+``` r
+# confusion matrix, not run
+# table(my_df$class, my_rf_par_mc$predicted)
+
+setdiff(names(my_rf), names(my_rf_par_mc))
+```
+
+    ## [1] "err.rate"  "confusion"
+
+Most predictions are the same between the model trained without and with
+parallelisation.
+
+``` r
+table(my_rf$predicted == my_rf_par_mc$predicted)
+```
+
+    ## 
+    ## FALSE  TRUE 
+    ##    98 19902
+
+## Session info
+
+Time built.
+
+    ## [1] "2022-11-16 08:06:28 UTC"
+
+Session info.
+
+    ## R version 4.2.0 (2022-04-22)
+    ## Platform: x86_64-pc-linux-gnu (64-bit)
+    ## Running under: Ubuntu 20.04.4 LTS
+    ## 
+    ## Matrix products: default
+    ## BLAS:   /usr/lib/x86_64-linux-gnu/openblas-pthread/libblas.so.3
+    ## LAPACK: /usr/lib/x86_64-linux-gnu/openblas-pthread/liblapack.so.3
+    ## 
+    ## locale:
+    ##  [1] LC_CTYPE=en_US.UTF-8       LC_NUMERIC=C              
+    ##  [3] LC_TIME=en_US.UTF-8        LC_COLLATE=en_US.UTF-8    
+    ##  [5] LC_MONETARY=en_US.UTF-8    LC_MESSAGES=en_US.UTF-8   
+    ##  [7] LC_PAPER=en_US.UTF-8       LC_NAME=C                 
+    ##  [9] LC_ADDRESS=C               LC_TELEPHONE=C            
+    ## [11] LC_MEASUREMENT=en_US.UTF-8 LC_IDENTIFICATION=C       
+    ## 
+    ## attached base packages:
+    ## [1] parallel  stats     graphics  grDevices utils     datasets  methods  
+    ## [8] base     
+    ## 
+    ## other attached packages:
+    ## [1] doRNG_1.8.2          rngtools_1.5.2       doParallel_1.0.17   
+    ## [4] iterators_1.0.14     foreach_1.5.2        randomForest_4.7-1.1
+    ## 
+    ## loaded via a namespace (and not attached):
+    ##  [1] codetools_0.2-18 digest_0.6.30    magrittr_2.0.3   evaluate_0.17   
+    ##  [5] rlang_1.0.6      stringi_1.7.8    cli_3.4.1        rstudioapi_0.14 
+    ##  [9] rmarkdown_2.17   tools_4.2.0      stringr_1.4.1    xfun_0.34       
+    ## [13] yaml_2.3.6       fastmap_1.1.0    compiler_4.2.0   htmltools_0.5.3 
+    ## [17] knitr_1.40
 
 # Technical points
 
@@ -488,4 +639,3 @@ issue of multi-collinearity, highly correlated features should be removed.
 * [Identifying Mendelian disease genes with the variant effect scoring tool](http://www.ncbi.nlm.nih.gov/pubmed/23819870)
 * [Classification and regression trees](https://pages.stat.wisc.edu/~loh/treeprogs/guide/wires11.pdf)
 * [Tuning a Random Forest model](https://rpubs.com/phamdinhkhanh/389752)
-
