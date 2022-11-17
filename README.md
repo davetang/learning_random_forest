@@ -629,6 +629,12 @@ the trees, which also highlights the importance of setting the number of
 features to use. While the random selection of features helps mitigates the
 issue of multi-collinearity, highly correlated features should be removed.
 
+* [Do we have to tune the number of trees in a random forest?](https://stats.stackexchange.com/questions/348245/do-we-have-to-tune-the-number-of-trees-in-a-random-forest)
+
+Short answer is no, and initially I thought we had to tune the number of trees
+to use but since trees are grown to the maximum possible node depth, this helps
+ensure that enough features are used.
+
 # Further reading
 
 * [Machine learning 101](http://www.astroml.org/sklearn_tutorial/general_concepts.html)
