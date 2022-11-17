@@ -1,137 +1,232 @@
 ---
-title: "Random Forest"
-author: "Dave Tang"
-date: "13 May 2016"
-output: pdf_document
-toc: true
+title: "Random Forests"
+output:
+   md_document:
+      variant: markdown
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = FALSE)
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.path = "img/")
 ```
 
-## Install required packages
+## Getting started
 
-```{r installation}
-required_packages <- c('randomForest', 'ggplot2')
+Install and load packages used in this notebook.
 
-for(p in required_packages){
-  if (! p %in% installed.packages()[,1]){
-    install.packages(p)
-  } else {
-    print(paste('The package ', p, ' is already installed', sep=''))
-  }
+```{r load_packages}
+my_packages <- c('randomForest', 'ggplot2')
+
+for (my_package in my_packages){
+   if(!require(my_package, character.only = TRUE)){
+      install.packages(my_package, '/packages')
+   }
+  library(my_package, character.only = TRUE)
 }
 ```
 
 ## Preparing the data
 
-```{r data}
-data_url <- 'http://archive.ics.uci.edu/ml/machine-learning-databases/wine/wine.data'
-df <- read.table(file=url(data_url), header=FALSE, sep=",")
-header <- c('class',
-            'alcohol',
-            'malic_acid',
-            'ash',
-            'ash_alcalinity',
-            'magnesium',
-            'total_phenols',
-            'flavanoids',
-            'nonflavanoid_phenols',
-            'proanthocyanins',
-            'colour',
-            'hue',
-            'od280_od315',
-            'proline')
-names(df) <- header
-df$class <- as.factor(df$class)
+We will use the [Wine data set](https://archive.ics.uci.edu/ml/datasets/wine).
 
-# how many classes of wine?
-table(df$class)
+```{r data}
+my_url <- 'https://archive.ics.uci.edu/ml/machine-learning-databases/wine/wine.data'
+
+wine_df <- read.csv(
+  file = url(my_url),
+  header=FALSE
+)
+
+colnames(wine_df) <- c(
+  'class',
+  'alcohol',
+  'malic_acid',
+  'ash',
+  'ash_alcalinity',
+  'magnesium',
+  'total_phenols',
+  'flavanoids',
+  'nonflavanoid_phenols',
+  'proanthocyanins',
+  'colour',
+  'hue',
+  'od280_od315',
+  'proline'
+)
+
+wine_df$class <- as.factor(wine_df$class)
+
+table(wine_df$class)
 ```
 
-## Analysis
+## Training
 
-```{r analysis}
-library(randomForest)
+First we'll split the data into a training (80%) and testing set (20%).
 
-set.seed(31)
-my_sample <- sort(sample(x = 1:nrow(df), replace = FALSE, size = nrow(df)/2))
-my_sample_comp <- setdiff(1:nrow(df), my_sample)
+```{r split}
+set.seed(1984)
+idx <- sample(x = 1:nrow(wine_df), size = nrow(wine_df)*0.8)
 
-test <- df[my_sample, ]
-train <- df[my_sample_comp, ]
+train <- wine_df[idx, ]
+test <- wine_df[-idx, ]
 
-# data = an optional data frame containing the variables in the model
-# importance = calculate the importance of predictors
-# do.trace = give a more verbose output as randomForest is running
-# proximity = calculate the proximity measure among the rows
-r <- randomForest(class ~ ., data=train, importance=TRUE, do.trace=100, proximity = TRUE)
+dim(train)
+dim(test)
+```
+
+Train a random forests model, where:
+
+* `data` - an optional data frame containing the variables in the model
+* `importance` - calculate the importance of predictors
+* `do.trace` - give a more verbose output as randomForest is running
+* `proximity` - calculate the proximity measure among the rows
+
+```{r train_rf}
+rf <- randomForest(
+  class ~ .,
+  data = train,
+  importance = TRUE,
+  do.trace = 100,
+  proximity = TRUE
+)
+```
+
+Summary.
+
+```{r}
+rf
 ```
 
 ## Plots
 
-```{r plots}
-library(ggplot2)
-varImpPlot(r)
+Variable importance plot.
 
-ggplot(df, aes(x=alcohol, y=colour, colour=class)) + geom_point()
+```{r var_imp_plot}
+varImpPlot(rf)
 ```
 
-## Random Forest object
+We can see a nice separation in the classes by plotting proline versus colour.
+
+```{r plots}
+ggplot(wine_df, aes(x = proline, y = colour, colour = class)) +
+  geom_point() +
+  theme_bw()
+```
+
+## Inspecting the Random Forest object
+
+The model is saved as a `randomForest` class.
+
+```{r rf_class}
+class(rf)
+```
+
+The object is a list containing the model's settings, predictions, and other information.
 
 ```{r object}
-class(r)
+str(rf)
+```
 
-names(r)
+`call` contains the original call to `randomForest`.
 
-# the original call to randomForest
-r$call
+```{r call}
+rf$call
+```
 
-# one of regression, classification, or unsupervised
-r$type
+`type` shows the model type: one of regression, classification, or unsupervised.
 
-# the predicted values of the input data based on out-of-bag samples
-r$predicted
+```{r type}
+rf$type
+```
 
-# a matrix with nclass + 2 (for classification) or two (for regression) columns
-# for classification: the first three columns are the class-specific measures
-# computed as mean descrease in accuracy
-# the MeanDecreaseAccuracy column is the mean descrease in accuracy over all classes
-# the MeanDecreaseGini is the mean decrease in Gini index
-r$importance
+`predicted` contains the predicted values of the input data based on out-of-bag samples.
 
-# the “standard errors” of the permutation-based importance measure
-r$importanceSD
+```{r predicted}
+rf$predicted
+```
 
-# number of trees grown
-r$ntree
+`importance` contains a matrix with number of classes + 2 (for classification) or two (for regression) columns. For our example, the first three columns are the class-specific measures computed as mean descrease in accuracy. The last two columns are the `MeanDecreaseAccuracy`, which is the mean decrease in accuracy over all classes and the `MeanDecreaseGini`, which is the mean decrease in Gini index.
 
-# number of predictors sampled for spliting at each node
-r$mtry
+```{r importance}
+rf$importance
+```
 
-# a list that contains the entire forest
-# r$forest
-# use getTree() to obtain an individual tree
-getTree(r, k = 1)
+`importanceSD` contains the "standard errors" of the permutation-based importance measure.
 
-# (classification only) vector error rates of the prediction on the input data,
-# the i-th element being the (OOB) error rate for all trees up to the i-th
-head(r$err.rate)
+```{r importance_sd}
+rf$importanceSD
+```
 
-# (classification only) the confusion matrix of the prediction (based on OOB data)
-r$confusion
+`ntree` shows the number of trees grown.
 
-# (classification only) a matrix with one row for each input data point and one column
-# for each class, giving the fraction or number of (OOB) ‘votes’ from the random forest
-head(r$votes)
+```{r ntree}
+rf$ntree
+```
 
-# number of times cases are ‘out-of-bag’ (and thus used in computing OOB error estimate)
-r$oob.times
+`mtry` shows the number of predictors sampled for splitting at each node of an independent tree.
 
-# if proximity=TRUE when randomForest is called, a matrix of proximity measures among the
-# input (based on the frequency that pairs of data points are in the same terminal nodes)
-dim(r$proximity)
+```{r myry}
+rf$mtry
+```
+
+`forest` is a list that contains the entire forest, i.e. every grown tree.
+
+```{r forest}
+names(rf$forest)
+```
+
+We can use `getTree` to obtain an individual tree. The returned value is a matrix (or data frame, if `labelVar=TRUE`) with six columns and number of rows equal to total number of nodes in the tree. The six columns are:
+
+1. left daughter - the row where the left daughter node is; 0 if the node is terminal
+2. right daughter - the row where the right daughter node is; 0 if the node is terminal
+3. split var - which variable was used to split the node; 0 if the node is terminal
+4. split point - where the best split is; see Details for categorical predictor
+5. status - is the node terminal (-1) or not (1)
+6. prediction - the prediction for the node; 0 if the node is not terminal
+
+```{r get_tree}
+getTree(rf, k = 500, labelVar = TRUE)
+```
+
+Summary depth of all trees.
+
+```{r tree_depth_summary}
+summary(
+  sapply(1:rf$ntree, function(x){
+    nrow(getTree(rf, k = x))
+  })
+)
+```
+
+`err.rate` contains error rates of the prediction on the input data, the i-th element being the (OOB) error rate for all trees up to the i-th.
+
+```{r err_rate}
+head(rf$err.rate)
+```
+
+`confusion` contains the confusion matrix of the prediction (based on OOB data).
+
+```{r confusion}
+rf$confusion
+```
+
+`votes` is a matrix with one row for each input data point and one column for each class, giving the fraction or number of (OOB) "votes" from the random forest.
+
+```{r votes}
+head(rf$votes)
+```
+
+`oob.times` contains the number of times cases are "out-of-bag" (and thus used in computing OOB error estimate): around 36% of the time.
+
+```{r oob_times}
+summary(rf$oob.times / rf$ntree)
+```
+
+`proximity` contains a matrix of proximity measures among the input (based on the frequency that pairs of data points are in the same terminal nodes).
+
+```{r proximity}
+dim(rf$proximity)
 ```
 
 ## On importance
@@ -150,6 +245,6 @@ where $n_c$ is the number of classes in the target variable and $p_i$ is the rat
 
 ## Session information
 
-```{r session, echo=FALSE}
+```{r session_info, echo=FALSE}
 sessionInfo()
 ```
