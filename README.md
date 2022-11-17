@@ -450,6 +450,28 @@ table(my_df$class)
     ##   U   V   W   X   Y   Z 
     ## 813 764 752 787 786 734
 
+## Metrics
+
+Write a function to calculate metrics.
+
+``` r
+metric <- function(rf, type = "accuracy"){
+   # not used for now
+   # tab <- table(rf$y, rf$predicted)
+   # accuracy <- (TP + TN) / (TP + FN + FP + TN)
+   # precision <- TP / (TP + FP)
+   # recall <- TP / (TP + FN)
+   # specificity <- TN / (TN + FP)
+   if(type == "accuracy"){
+      return(sum(rf$predicted == rf$y) / length(rf$y))
+   } else {
+      return(NULL)
+   }
+}
+```
+
+## Training
+
 Train random forests model with 2,000 trees without parallelisation.
 
 ``` r
@@ -466,10 +488,10 @@ my_time
 ```
 
     ##    user  system elapsed 
-    ##  80.620   4.132  84.950
+    ##  80.772   6.143  87.121
 
 ``` r
-sum(my_rf$predicted == my_df$class) / length(my_df$class)
+metric(my_rf)
 ```
 
     ## [1] 0.96935
@@ -498,10 +520,10 @@ my_time_par
 ```
 
     ##    user  system elapsed 
-    ##   5.249   4.003  19.326
+    ##   5.357   4.252  19.719
 
 ``` r
-sum(my_rf_par$predicted == my_df$class) / length(my_df$class)
+metric(my_rf_par)
 ```
 
     ## [1] 0.9696
@@ -541,10 +563,10 @@ my_time_par_mc
 ```
 
     ##    user  system elapsed 
-    ##   1.443   0.885  12.394
+    ##   1.551   1.084  12.873
 
 ``` r
-sum(my_rf_par_mc$predicted == my_df$class) / length(my_df$class)
+metric(my_rf_par_mc)
 ```
 
     ## [1] 0.9696
@@ -579,11 +601,110 @@ table(my_rf$predicted == my_rf_par_mc$predicted)
     ## FALSE  TRUE 
     ##    98 19902
 
+## Tuning
+
+Check accuracy as a function of the number of trees.
+
+``` r
+my_models <- list()
+my_time_ntree <- system.time(
+   for(n in seq(from = 500, to = 2000, by = 500)){
+      set.seed(1984)
+      my_rf <- randomForest(
+         class ~ .,
+         data = my_df,
+         ntree = n
+      )
+      my_models[[paste0("ntree_", n)]] <- my_rf
+   }
+)
+
+my_time_ntree
+```
+
+    ##    user  system elapsed 
+    ## 199.319   7.435 207.239
+
+``` r
+sort(sapply(my_models, metric))
+```
+
+    ##  ntree_500 ntree_2000 ntree_1000 ntree_1500 
+    ##    0.96925    0.96935    0.96945    0.96955
+
+Check accuracy as a function of the number of trees in parallel.
+
+``` r
+cl <- makeCluster(4)
+registerDoParallel(cl)
+registerDoRNG(seed = 1984)
+
+my_time_ntree_par <- system.time(
+   my_models_par <- foreach(
+      ntree = seq(from = 500, to = 2000, by = 500),
+      .packages = 'randomForest'
+   ) %dopar% {
+      randomForest(class ~ ., data = my_df, ntree = ntree)
+   }
+)
+stopCluster(cl)
+
+my_time_ntree_par
+```
+
+    ##    user  system elapsed 
+    ##   1.136   0.784  93.234
+
+``` r
+sapply(my_models_par, metric)
+```
+
+    ## [1] 0.96825 0.97000 0.97000 0.97040
+
+Check accuracy as a function of the number of trees and features in
+parallel.
+
+``` r
+cl <- makeCluster(32)
+registerDoParallel(cl)
+registerDoRNG(seed = 1984)
+
+ntrees <- seq(from = 500, to = 2000, by = 500)
+mtrys <- 1:ncol(my_df)
+my_grid <- expand.grid(ntrees, mtrys)
+
+my_time_ntree_mtry_par <- system.time(
+   my_models_mtry_par <- foreach(ntree = my_grid$Var1, mtry = my_grid$Var2, .packages = 'randomForest') %dopar% {
+      randomForest(class ~ ., data = my_df, ntree = ntree, mtry = mtry)
+   }
+)
+
+stopCluster(cl)
+my_time_ntree_mtry_par
+```
+
+    ##    user  system elapsed 
+    ##  17.752  20.017 240.348
+
+``` r
+my_grid$accuracy <- sapply(my_models_mtry_par, metric)
+
+head(my_grid[order(my_grid$accuracy, decreasing = TRUE), ])
+```
+
+    ##    Var1 Var2 accuracy
+    ## 8  2000    2  0.97140
+    ## 12 2000    3  0.97125
+    ## 11 1500    3  0.97050
+    ## 7  1500    2  0.97040
+    ## 10 1000    3  0.97040
+    ## 15 1500    4  0.96995
+
 ## Session info
 
 Time built.
 
-    ## [1] "2022-11-16 08:06:28 UTC"
+    ## [1] "2022-11-17 04:51:48 UTC"
 
 Session info.
 
