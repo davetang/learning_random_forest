@@ -207,7 +207,7 @@ boxplot(df$alcohol ~ df$class, main="Alcohol by class")
 ggplot(df, aes(x=alcohol, y=colour, colour=class)) + geom_point()
 ```
 
-![Scatter plot of alcohol versus colour by class](image/alcohol_colour.png)
+![Scatter plot of alcohol versus colour by class](img/alcohol_colour.png)
 
 Predictor importance.
 
@@ -215,7 +215,7 @@ Predictor importance.
 varImpPlot(r)
 ```
 
-![Variance Importance Plot](image/var_imp_plot.png)
+![Variance Importance Plot](img/var_imp_plot.png)
 
 # Regression
 
@@ -284,7 +284,7 @@ plot(original, predicted, pch=19)
 abline(fit, col=2)
 ```
 
-![Random Forest regression](image/random_forest_regression.png)
+![Random Forest regression](img/random_forest_regression.png)
 
 # Random Forest on breast cancer data
 
@@ -354,7 +354,7 @@ auc@y.values
 legend('bottomright', legend = paste("AUC = ", auc@y.values))
 ```
 
-![ROC curve using ROCR](image/breast_cancer_roc.png)
+![ROC curve using ROCR](img/breast_cancer_roc.png)
 
 # Proximity
 
