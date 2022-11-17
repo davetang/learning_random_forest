@@ -43,6 +43,28 @@ dim(my_df)
 table(my_df$class)
 ```
 
+## Metrics
+
+Write a function to calculate metrics.
+
+```{r metric}
+metric <- function(rf, type = "accuracy"){
+   # not used for now
+   # tab <- table(rf$y, rf$predicted)
+   # accuracy <- (TP + TN) / (TP + FN + FP + TN)
+   # precision <- TP / (TP + FP)
+   # recall <- TP / (TP + FN)
+   # specificity <- TN / (TN + FP)
+   if(type == "accuracy"){
+      return(sum(rf$predicted == rf$y) / length(rf$y))
+   } else {
+      return(NULL)
+   }
+}
+```
+
+## Training
+
 Train random forests model with 2,000 trees without parallelisation.
 
 ```{r my_rf}
@@ -57,7 +79,7 @@ my_time <- system.time(
 
 my_time
 
-sum(my_rf$predicted == my_df$class) / length(my_df$class)
+metric(my_rf)
 ```
 
 Train random forests with 2,000 trees in parallel. Note the line of code `registerDoRNG(seed = 1984)`: this is to ensure that we train the same model even with parallelisation.
@@ -80,7 +102,7 @@ stopCluster(cl)
 
 my_time_par
 
-sum(my_rf_par$predicted == my_df$class) / length(my_df$class)
+metric(my_rf_par)
 ```
 
 [Set `.multicombine = TRUE`](https://stackoverflow.com/questions/14106010/parallel-execution-of-random-forest-in-r) to further increase the speed up. As per the [documentation](https://cran.r-project.org/web/packages/foreach/foreach.pdf), the `.multicombine` argument is a:
@@ -106,7 +128,7 @@ stopCluster(cl)
 
 my_time_par_mc
 
-sum(my_rf_par_mc$predicted == my_df$class) / length(my_df$class)
+metric(my_rf_par_mc)
 ```
 
 As noted in the [documentation](https://cran.r-project.org/web/packages/randomForest/randomForest.pdf) in the `combine` section:
@@ -126,6 +148,74 @@ Most predictions are the same between the model trained without and with paralle
 
 ```{r compare_rf}
 table(my_rf$predicted == my_rf_par_mc$predicted)
+```
+
+## Tuning
+
+Check accuracy as a function of the number of trees.
+
+```{r test_ntree}
+my_models <- list()
+my_time_ntree <- system.time(
+   for(n in seq(from = 500, to = 2000, by = 500)){
+      set.seed(1984)
+      my_rf <- randomForest(
+         class ~ .,
+         data = my_df,
+         ntree = n
+      )
+      my_models[[paste0("ntree_", n)]] <- my_rf
+   }
+)
+
+my_time_ntree
+sort(sapply(my_models, metric))
+```
+
+Check accuracy as a function of the number of trees in parallel.
+
+```{r test_ntree_foreach}
+cl <- makeCluster(4)
+registerDoParallel(cl)
+registerDoRNG(seed = 1984)
+
+my_time_ntree_par <- system.time(
+   my_models_par <- foreach(
+      ntree = seq(from = 500, to = 2000, by = 500),
+      .packages = 'randomForest'
+   ) %dopar% {
+      randomForest(class ~ ., data = my_df, ntree = ntree)
+   }
+)
+stopCluster(cl)
+
+my_time_ntree_par
+sapply(my_models_par, metric)
+```
+
+Check accuracy as a function of the number of trees and features in parallel.
+
+```{r test_ntree_mtry_foreach}
+cl <- makeCluster(32)
+registerDoParallel(cl)
+registerDoRNG(seed = 1984)
+
+ntrees <- seq(from = 500, to = 2000, by = 500)
+mtrys <- 1:ncol(my_df)
+my_grid <- expand.grid(ntrees, mtrys)
+
+my_time_ntree_mtry_par <- system.time(
+   my_models_mtry_par <- foreach(ntree = my_grid$Var1, mtry = my_grid$Var2, .packages = 'randomForest') %dopar% {
+      randomForest(class ~ ., data = my_df, ntree = ntree, mtry = mtry)
+   }
+)
+
+stopCluster(cl)
+my_time_ntree_mtry_par
+
+my_grid$accuracy <- sapply(my_models_mtry_par, metric)
+
+head(my_grid[order(my_grid$accuracy, decreasing = TRUE), ])
 ```
 
 ## Session info
